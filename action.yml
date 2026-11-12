@@ -1,80 +1,55 @@
-name: 'Sheaf Coherence Check'
-author: 'sheafhq'
-description: Cohomological coherence certificate for a CI/CD pipeline. Reads pipeline evidence JSON, computes the sheaf H^1, fails the build if build/test/deploy evidence do not glue into a single consistent global story. Catches artifact drift that SLSA + Sigstore do not explicitly check.
-
+name: Sheaf Coherence Check
+author: sheafhq
+description: Cohomological coherence certificate for CI/CD pipelines. Detects artifact drift that SLSA and Sigstore do not catch.
 branding:
-  icon: 'activity'
-  color: 'purple'
-
+  icon: activity
+  color: purple
 inputs:
   evidence:
-    description: >
-      Path to a JSON file inside the checked-out repo containing the pipeline
-      events (build, test, deploy) in the sheaf fixture format. See
-      fixtures/coherent.json for the schema.
+    description: 'Path to a JSON file inside the checked-out repo containing the pipeline events (build, test, deploy) in the sheaf fixture format. See fixtures/coherent.json for the schema.
+
+      '
     required: true
   certificate-out:
-    description: 'Where to write the certificate.json artifact.'
+    description: Where to write the certificate.json artifact.
     required: false
-    default: 'coherence-certificate.json'
+    default: coherence-certificate.json
   write-summary:
-    description: 'Write the certificate human-readable summary to the job summary.'
+    description: Write the certificate human-readable summary to the job summary.
     required: false
     default: 'true'
   fail-on-incoherent:
-    description: 'Fail the workflow step if the certificate verdict is incoherent.'
+    description: Fail the workflow step if the certificate verdict is incoherent.
     required: false
     default: 'true'
-
 outputs:
   verdict:
-    description: 'coherent or incoherent'
+    description: coherent or incoherent
     value: ${{ steps.check.outputs.verdict }}
   certificate-path:
-    description: 'Path to the written certificate JSON.'
+    description: Path to the written certificate JSON.
     value: ${{ inputs.certificate-out }}
-
 runs:
   using: composite
   steps:
-    - name: Fetch cert.py
-      shell: bash
-      run: |
-        set -euo pipefail
-        if [ ! -f "${{ github.action_path }}/cert.py" ]; then
-          curl -fsSL -o "${{ github.action_path }}/cert.py" https://raw.githubusercontent.com/sheafhq/sheaf-coherence-action/main/cert.py
-        fi
-    - name: Compute coherence certificate
-      id: check
-      shell: bash
-      env:
-        EVIDENCE: ${{ inputs.evidence }}
-        OUT: ${{ inputs.certificate-out }}
-        FAIL_ON_INCOHERENT: ${{ inputs.fail-on-incoherent }}
-      run: |
-        set +e
-        python3 "${{ github.action_path }}/cert.py" "${EVIDENCE}" --out "${OUT}"
-        STATUS=$?
-        if [ -f "${OUT}" ]; then
-          VERDICT=$(python3 -c "import json;print(json.load(open('${OUT}'))['verdict'])")
-        else
-          VERDICT="error"
-        fi
-        echo "verdict=${VERDICT}" >> "${GITHUB_OUTPUT}"
-        if [ "${FAIL_ON_INCOHERENT}" = "true" ] && [ "${VERDICT}" != "coherent" ]; then
-          exit "${STATUS}"
-        fi
-    - name: Write job summary
-      if: inputs.write-summary == 'true'
-      shell: bash
-      env:
-        CERT: ${{ inputs.certificate-out }}
-      run: |
-        if [ ! -f "${CERT}" ]; then
-          exit 0
-        fi
-        {
-          echo "## Sheaf Coherence Certificate"
-          echo ""
-          python3 -c "import json,os; d=json.load(open(os.environ['CERT'])); v=d['verdict']; print('Verdict:', ('OK' if v=='coherent' else 'FAIL'), v)"
-        } >> "${GITHUB_STEP_SUMMARY}"
+  - name: Fetch cert.py
+    shell: bash
+    run: "set -euo pipefail\nif [ ! -f \"${{ github.action_path }}/cert.py\" ]; then\n  curl -fsSL -o \"${{ github.action_path }}/cert.py\" https://raw.githubusercontent.com/sheafhq/sheaf-coherence-action/main/cert.py\n\
+      fi\n"
+  - name: Compute coherence certificate
+    id: check
+    shell: bash
+    env:
+      EVIDENCE: ${{ inputs.evidence }}
+      OUT: ${{ inputs.certificate-out }}
+      FAIL_ON_INCOHERENT: ${{ inputs.fail-on-incoherent }}
+    run: "set +e\npython3 \"${{ github.action_path }}/cert.py\" \"${EVIDENCE}\" --out \"${OUT}\"\nSTATUS=$?\nif [ -f \"${OUT}\" ]; then\n  VERDICT=$(python3 -c \"import json;print(json.load(open('${OUT}'))['verdict'])\"\
+      )\nelse\n  VERDICT=\"error\"\nfi\necho \"verdict=${VERDICT}\" >> \"${GITHUB_OUTPUT}\"\nif [ \"${FAIL_ON_INCOHERENT}\" = \"true\" ] && [ \"${VERDICT}\" != \"coherent\" ]; then\n  exit \"${STATUS}\"\
+      \nfi\n"
+  - name: Write job summary
+    if: inputs.write-summary == 'true'
+    shell: bash
+    env:
+      CERT: ${{ inputs.certificate-out }}
+    run: "if [ ! -f \"${CERT}\" ]; then\n  exit 0\nfi\n{\n  echo \"## Sheaf Coherence Certificate\"\n  echo \"\"\n  python3 -c \"import json,os; d=json.load(open(os.environ['CERT'])); v=d['verdict']; print('Verdict:',\
+      \ ('OK' if v=='coherent' else 'FAIL'), v)\"\n} >> \"${GITHUB_STEP_SUMMARY}\"\n"
