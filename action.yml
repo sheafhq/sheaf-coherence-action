@@ -1,0 +1,99 @@
+name: 'Sheaf Coherence Check'
+description: 'Cohomological coherence certificate for a CI/CD pipeline. Reads evidence JSON, computes the sheaf H^1, fails the build if the pipeline is incoherent (build, test, deploy evidence do not glue into one global story). v0.1 — see github.com/sheafhq/sheaf for the math.'
+author: 'sheafhq'
+branding:
+  icon: 'activity'
+  color: 'purple'
+
+inputs:
+  evidence:
+    description: >
+      Path to a JSON file inside the checked-out repo containing the pipeline
+      events (build, test, deploy) in the sheaf fixture format. See
+      packages/coherence/fixtures/coherent.json for the schema.
+    required: true
+  certificate-out:
+    description: 'Where to write the certificate.json artifact.'
+    required: false
+    default: 'coherence-certificate.json'
+  write-summary:
+    description: 'Write the certificate human-readable summary to job summary.'
+    required: false
+    default: 'true'
+  fail-on-incoherent:
+    description: 'Fail the workflow step if the certificate verdict is incoherent.'
+    required: false
+    default: 'true'
+
+outputs:
+  verdict:
+    description: 'coherent | incoherent'
+    value: ${{ steps.check.outputs.verdict }}
+  certificate-path:
+    description: 'Path to the written certificate JSON.'
+    value: ${{ inputs.certificate-out }}
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch cert.py from sheaf
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Pull the pinned cert.py from the sheafhq/sheaf repo. Cached per run.
+        if [ ! -f "${{ github.action_path }}/cert.py" ]; then
+          curl -fsSL -o "${{ github.action_path }}/cert.py" \
+            https://raw.githubusercontent.com/sheafhq/sheaf/main/packages/coherence/cert.py
+        fi
+
+    - name: Compute coherence certificate
+      id: check
+      shell: bash
+      env:
+        EVIDENCE: ${{ inputs.evidence }}
+        OUT: ${{ inputs.certificate-out }}
+        FAIL_ON_INCOHERENT: ${{ inputs.fail-on-incoherent }}
+      run: |
+        set +e
+        python3 "${{ github.action_path }}/cert.py" "${EVIDENCE}" --out "${OUT}"
+        STATUS=$?
+        if [ -f "${OUT}" ]; then
+          VERDICT=$(python3 -c "import json;print(json.load(open('${OUT}'))['verdict'])")
+        else
+          VERDICT="error"
+        fi
+        echo "verdict=${VERDICT}" >> "${GITHUB_OUTPUT}"
+        if [ "${FAIL_ON_INCOHERENT}" = "true" ] && [ "${VERDICT}" != "coherent" ]; then
+          exit "${STATUS}"
+        fi
+
+    - name: Write job summary
+      if: inputs.write-summary == 'true'
+      shell: bash
+      env:
+        CERT: ${{ inputs.certificate-out }}
+      run: |
+        if [ ! -f "${CERT}" ]; then
+          echo "::warning::no certificate file to summarize"
+          exit 0
+        fi
+        {
+          echo "## 🔬 Sheaf Coherence Certificate"
+          echo ""
+          python3 - <<'PY'
+        import json, os
+        d = json.load(open(os.environ['CERT']))
+        v = d['verdict']
+        icon = '✅' if v == 'coherent' else '❌'
+        print(f"**Verdict:** {icon} `{v}`")
+        print()
+        print(f"**H⁰ dim:** `{d['cohomology']['H0_dim']}` · **H¹ dim:** `{d['cohomology']['H1_dim']}` · **coboundary rank:** `{d['cohomology']['coboundary_rank']}`")
+        print()
+        for s in d.get('sheaf_obstructions', []):
+            print(f"- 🔴 sheaf seam at `{s['edge_id']}` ({s['edge_type']}): {', '.join(s['invariants_broken'])}")
+        for t in d.get('temporal_violations', []):
+            print(f"- 🟠 DAG violation at `{t['edge_id']}` ({t['edge_type']}): dst_ts `{t['dst_ts']}` ≤ src_ts `{t['src_ts']}`")
+        print()
+        print("<sub>Certificate produced by [Sheaf coherence](https://github.com/sheafhq/sheaf/tree/main/packages/coherence) — cohomological coherence for CI/CD pipelines.</sub>")
+        PY
+        } >> "${GITHUB_STEP_SUMMARY}"

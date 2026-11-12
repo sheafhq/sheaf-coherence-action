@@ -1,0 +1,39 @@
+{
+  "fixture_name": "ci_cd_coherent_happy_path",
+  "description": "Normal CI/CD pipeline: commit SHA matches build input, build artifact hash propagates unchanged through test, deploy. H^1 = 0.",
+  "events": [
+    {
+      "id": "c1",
+      "type": "Commit",
+      "ts": 1794428400,
+      "sha": "a1b2c3d4e5f6789abcdef0123456789abcdef012"
+    },
+    {
+      "id": "b1",
+      "type": "Build",
+      "ts": 1794428460,
+      "parent_id": "c1",
+      "commit_sha": "a1b2c3d4e5f6789abcdef0123456789abcdef012",
+      "artifact_hash": "sha256:b00bee5deadbeefcafebabef00dba5efacef00dba5efacef00dba5efacef00dba",
+      "artifact_name": "app-v1.0.0.tar.gz"
+    },
+    {
+      "id": "t1",
+      "type": "Test",
+      "ts": 1794428520,
+      "parent_id": "b1",
+      "artifact_hash": "sha256:b00bee5deadbeefcafebabef00dba5efacef00dba5efacef00dba5efacef00dba",
+      "result": "pass",
+      "suite": "e2e+unit"
+    },
+    {
+      "id": "d1",
+      "type": "Deploy",
+      "ts": 1794428580,
+      "parent_id": "t1",
+      "artifact_hash": "sha256:b00bee5deadbeefcafebabef00dba5efacef00dba5efacef00dba5efacef00dba",
+      "environment": "production",
+      "cluster": "us-east-1"
+    }
+  ]
+}
