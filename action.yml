@@ -1,6 +1,5 @@
 name: 'Sheaf Coherence Check'
-description: 'Cohomological coherence certificate for a CI/CD pipeline. Reads evidence JSON, computes the sheaf H^1, fails the build if the pipeline is incoherent (build, test, deploy evidence do not glue into one global story). v0.1 — see github.com/sheafhq/sheaf for the math.'
-author: 'sheafhq'
+description: 'Cohomological coherence certificate for a CI/CD pipeline.
 branding:
   icon: 'activity'
   color: 'purple'
