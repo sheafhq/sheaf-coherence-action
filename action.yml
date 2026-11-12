@@ -8,9 +8,9 @@ branding:
 inputs:
   evidence:
     description: >
-      Path to a JSON file inside the checked-out repo containing the pipeline
-      events (build, test, deploy) in the sheaf fixture format. See
-      packages/coherence/fixtures/coherent.json for the schema.
+      Path to a JSON file inside the repo containing the pipeline
+      events in the sheaf fixture format. See
+      packages/coherence/fixtures/coherent.json
     required: true
   certificate-out:
     description: 'Where to write the certificate.json artifact.'
